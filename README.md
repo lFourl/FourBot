@@ -9,7 +9,7 @@ A concurrent and performant web crawler using goroutines and channels.
 - Rate Limting
 - Enhanced Logging
 
-To run the web crawler, update the urls in the `main` function andrun the code below
+To run the web crawler, update the urls in the `main` function and run the code below
 ```
 go run main.go
 ```
