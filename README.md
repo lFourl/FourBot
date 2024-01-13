@@ -1,6 +1,6 @@
-# Go Web Crawler
+# My Web Crawler "FourBot"
 
-This is a concurrent web crawler written in Go using goroutines and channels.
+A concurrent and performant web crawler using goroutines and channels.
 
 ### Equipped with:
 - Proper Network Error Handling
