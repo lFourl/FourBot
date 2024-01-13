@@ -6,7 +6,8 @@ import (
     "io/ioutil"
     "sync"
     "net" 
-    "os"  
+    "os"
+    "time"
 )
 
 type Result struct {
@@ -15,7 +16,9 @@ type Result struct {
     Error error
 }
 
-func crawl(url string, ch chan<- Result, client *http.Client) {
+func crawl(url string, ch chan<- Result, client *http.Client, rateLimiter <-chan time.Time) {
+    <-rateLimiter
+    
     resp, err := client.Get(url)
     if err != nil {
         var netErr net.Error
@@ -67,11 +70,14 @@ func main() {
         Timeout: time.Second * 10,
     }
 
+    rateLimit := time.Second / 10
+    rateLimiter := time.Tick(rateLimit)
+
     for _, url := range urls {
         wg.Add(1)
         go func(url string) {
             defer wg.Done()
-            crawl(url, ch, client)
+            crawl(url, ch, client, rateLimiter)
         }(url)
     }
 
