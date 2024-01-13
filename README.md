@@ -1,8 +1,8 @@
 # Go Web Crawler
 
-This is a concurrent web crawler written in Go using goroutines and channels.
+This is a concurrent web crawler written in Go using goroutines with proper error and redirect handling.
 
-To run the web crawler, run the code below
+To run the web crawler, update the urls in the `main` function andrun the code below
 ```
-go run main.go https://example.com
+go run main.go
 ```
