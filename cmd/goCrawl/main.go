@@ -18,8 +18,16 @@ type Result struct {
 
 func crawl(url string, ch chan<- Result, client *http.Client, rateLimiter <-chan time.Time) {
     <-rateLimiter
+
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        ch <- Result{URL: url, Error: err}
+        return
+    }
+
+    req.Header.Set("User-Agent", "FourBot")
     
-    resp, err := client.Get(url)
+    resp, err := client.Do(req)
     if err != nil {
         var netErr net.Error
         if os.IsTimeout(err) {
