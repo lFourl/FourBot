@@ -96,6 +96,14 @@ func crawl(targetURL string, ch chan<- Result, client *http.Client, rateLimiter 
 	ch <- Result{URL: targetURL, Body: string(body)}
 }
 
+func worker(id int, urls <-chan string, results chan<- Result, client *http.Client, rateLimiter <-chan time.Time, robotsData *robotstxt.RobotsData, wg *sync.WaitGroup) {
+	for url := range urls {
+		crawl(url, results, client, rateLimiter, robotsData)
+		wg.Done()
+	}
+	fmt.Printf("Worker %d finished\n", id)
+}
+
 func main() {
 	urls := []string{
 		"http://example.com",
@@ -105,6 +113,7 @@ func main() {
 	}
 
 	ch := make(chan Result)
+	urlsChan := make(chan string)
 	var wg sync.WaitGroup
 
 	client := &http.Client{
@@ -120,6 +129,11 @@ func main() {
 	rateLimit := time.Second / 10
 	rateLimiter := time.Tick(rateLimit)
 
+	const numWorkers = 5
+	for i := 0; i < numWorkers; i++ {
+		go worker(i, urlsChan, ch, client, rateLimiter, nil, &wg)
+	}
+
 	for _, targetURL := range urls {
 		parsedURL, err := url.Parse(targetURL)
 		if err != nil {
@@ -134,6 +148,7 @@ func main() {
 		}
 
 		wg.Add(1)
+		urlsChan <- targetURL
 		go func(targetURL string) {
 			defer wg.Done()
 			crawl(targetURL, ch, client, rateLimiter, robotsData)
@@ -142,6 +157,7 @@ func main() {
 
 	go func() {
 		wg.Wait()
+		close(urlsChan)
 		close(ch)
 	}()
 
