@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,6 +19,10 @@ type Result struct {
 	URL   string
 	Body  string
 	Error error
+}
+
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 }
 
 func getRobotsTxt(robotsURL string, client *http.Client) (*robotstxt.RobotsData, error) {
@@ -89,6 +94,7 @@ func crawl(targetURL string, ch chan<- Result, client *http.Client, rateLimiter 
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("Error crawling URL %s: %v\n", targetURL, err)
 		ch <- Result{URL: targetURL, Error: err}
 		return
 	}
@@ -97,7 +103,9 @@ func crawl(targetURL string, ch chan<- Result, client *http.Client, rateLimiter 
 }
 
 func worker(id int, urls <-chan string, results chan<- Result, client *http.Client, rateLimiter <-chan time.Time, robotsData *robotstxt.RobotsData, wg *sync.WaitGroup) {
+	log.Printf("Worker %d started\n", id)
 	for url := range urls {
+		log.Printf("Worker %d processing URL: %\n", id, url)
 		crawl(url, results, client, rateLimiter, robotsData)
 		wg.Done()
 	}
@@ -137,7 +145,7 @@ func main() {
 	for _, targetURL := range urls {
 		parsedURL, err := url.Parse(targetURL)
 		if err != nil {
-			fmt.Println("Error parsing URL:", err)
+			log.Printf("Error parsing URL:", targetURL, err)
 			continue
 		}
 		robotsURL := fmt.Sprintf("%s://%s/robots.txt", parsedURL.Scheme, parsedURL.Host)
