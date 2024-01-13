@@ -1,77 +1,80 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"os"
-	"strings"
-	"sync"
-
-	"golang.org/x/net/html"
+    "fmt"
+    "net/http"
+    "io/ioutil"
+    "sync"
 )
 
-func crawl(url string, wg *sync.WaitGroup, urlChan chan string) {
-	defer wg.Done()
-
-	resp, err := http.Get(url)
-	if err != nil {
-		fmt.Println("Error fetching URL:", url, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Println("Error: Non-OK status code for URL:", url)
-		return
-	}
-
-	doc, err := html.Parse(resp.Body)
-	if err != nil {
-		fmt.Println("Error parsing response:", url, err)
-		return
-	}
-
-	visitNode(doc, urlChan)
+type Result struct {
+    URL   string
+    Body  string
+    Error error
 }
 
-func visitNode(n *html.Node, urlChan chan string) {
-	if n.Type == html.ElementNode && n.Data == "a" {
-		for _, attr := range n.Attr {
-			if attr.Key == "href" {
-				url := attr.Val
-				if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-					urlChan <- url
-				}
-			}
-		}
-	}
+func crawl(url string, ch chan<- Result, client *http.Client) {
+    resp, err := client.Get(url)
+    if err != nil {
+        ch <- Result{URL: url, Error: err}
+        return
+    }
+    defer resp.Body.Close()
 
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		visitNode(c, urlChan)
-	}
+    if resp.StatusCode != http.StatusOK {
+        ch <- Result{URL: url, Error: fmt.Errorf("status code: %d", resp.StatusCode)}
+        return
+    }
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        ch <- Result{URL: url, Error: err}
+        return
+    }
+
+    ch <- Result{URL: url, Body: string(body)}
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <website>")
-		return
-	}
+    urls := []string{
+        "http://example.com",
+        "http://example.org",
+        "http://example.net",
+        // Add more URLs here
+    }
 
-	website := os.Args[1]
+    ch := make(chan Result)
+    var wg sync.WaitGroup
 
-	urlChan := make(chan string)
-	var wg sync.WaitGroup
+    // Custom HTTP client with redirect policy
+    client := &http.Client{
+        CheckRedirect: func(req *http.Request, via []*http.Request) error {
+            if len(via) >= 10 {
+                return fmt.Errorf("stopped after 10 redirects")
+            }
+            return nil
+        },
+    }
 
-	wg.Add(1)
-	go crawl(website, &wg, urlChan)
+    for _, url := range urls {
+        wg.Add(1)
+        go func(url string) {
+            defer wg.Done()
+            crawl(url, ch, client)
+        }(url)
+    }
 
-	go func() {
-		for url := range urlChan {
-			fmt.Println(url)
-		}
-	}()
+    go func() {
+        wg.Wait()
+        close(ch)
+    }()
 
-	wg.Wait()
-
-	close(urlChan)
+    for result := range ch {
+        if result.Error != nil {
+            fmt.Printf("Error fetching %s: %s\n", result.URL, result.Error)
+        } else {
+            fmt.Println("Fetched URL:", result.URL)
+            fmt.Println("Content:", result.Body)
+        }
+    }
 }
