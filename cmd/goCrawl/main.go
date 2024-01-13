@@ -5,6 +5,8 @@ import (
     "net/http"
     "io/ioutil"
     "sync"
+    "net" 
+    "os"  
 )
 
 type Result struct {
@@ -16,7 +18,16 @@ type Result struct {
 func crawl(url string, ch chan<- Result, client *http.Client) {
     resp, err := client.Get(url)
     if err != nil {
-        ch <- Result{URL: url, Error: err}
+        var netErr net.Error
+        if os.IsTimeout(err) {
+            ch <- Result{URL: url, Error: fmt.Errorf("timeout error: %s", err)}
+        } else if errors.As(err, &netErr) && netErr.Timeout() {
+            ch <- Result{URL: url, Error: fmt.Errorf("network timeout error: %s", err)}
+        } else if err, ok := err.(net.Error); ok && err.Timeout() {
+            ch <- Result{URL: url, Error: fmt.Errorf("network timeout error: %s", err)}
+        } else {
+            ch <- Result{URL: url, Error: err}
+        }
         return
     }
     defer resp.Body.Close()
@@ -46,7 +57,6 @@ func main() {
     ch := make(chan Result)
     var wg sync.WaitGroup
 
-    // Custom HTTP client with redirect policy
     client := &http.Client{
         CheckRedirect: func(req *http.Request, via []*http.Request) error {
             if len(via) >= 10 {
@@ -54,6 +64,7 @@ func main() {
             }
             return nil
         },
+        Timeout: time.Second * 10,
     }
 
     for _, url := range urls {
