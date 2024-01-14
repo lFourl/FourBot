@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/temoto/robotstxt"
@@ -105,7 +107,7 @@ func crawl(targetURL string, ch chan<- Result, client *http.Client, rateLimiter 
 func worker(id int, urls <-chan string, results chan<- Result, client *http.Client, rateLimiter <-chan time.Time, robotsData *robotstxt.RobotsData, wg *sync.WaitGroup) {
 	log.Printf("Worker %d started\n", id)
 	for url := range urls {
-		log.Printf("Worker %d processing URL: %\n", id, url)
+		log.Printf("Worker %d processing URL: %s\n", id, url)
 		crawl(url, results, client, rateLimiter, robotsData)
 		wg.Done()
 	}
@@ -137,6 +139,9 @@ func main() {
 	rateLimit := time.Second / 10
 	rateLimiter := time.Tick(rateLimit)
 
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+
 	const numWorkers = 5
 	for i := 0; i < numWorkers; i++ {
 		go worker(i, urlsChan, ch, client, rateLimiter, nil, &wg)
@@ -145,7 +150,7 @@ func main() {
 	for _, targetURL := range urls {
 		parsedURL, err := url.Parse(targetURL)
 		if err != nil {
-			log.Printf("Error parsing URL:", targetURL, err)
+			log.Printf("Error parsing URL: %s, error: %v", targetURL, err)
 			continue
 		}
 		robotsURL := fmt.Sprintf("%s://%s/robots.txt", parsedURL.Scheme, parsedURL.Host)
@@ -164,8 +169,23 @@ func main() {
 	}
 
 	go func() {
-		wg.Wait()
+		for _, targetURL := range urls {
+			select {
+			case <-shutdownChan:
+				log.Println("Shutdown signal received, stopping URL dispatch")
+				return
+			default:
+				wg.Add(1)
+				urlsChan <- targetURL
+			}
+		}
+	}()
+
+	go func() {
+		<-shutdownChan
+		log.Println("Shutdown signal received, waiting for ongoing tasks to complete")
 		close(urlsChan)
+		wg.Wait()
 		close(ch)
 	}()
 
@@ -177,4 +197,6 @@ func main() {
 			fmt.Println("Content:", result.Body)
 		}
 	}
+
+	log.Println("Crawler shutdown successfully")
 }
