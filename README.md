@@ -8,6 +8,7 @@ A concurrent and performant web crawler using goroutines and channels.
 - Concurrency Control
 - Rate Limting
 - Enhanced Logging
+- Graceful Shutdown
 
 To run the web crawler, update the urls in the `main` function and run the code below
 ```
