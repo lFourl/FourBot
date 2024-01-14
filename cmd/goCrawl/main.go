@@ -25,6 +25,20 @@ type Result struct {
 	Error error
 }
 
+func validateURLs(input string) ([]string, error) {
+	rawURLs := strings.Split(input, ",")
+	var urls []string
+
+	for _, rawURL := range rawURLs {
+		trimmedURL := strings.TrimSpace(rawURL)
+		if _, err := url.ParseRequestURI(trimmedURL); err != nil {
+			return nil, fmt.Errorf("invalid URL: %s", trimmedURL)
+		}
+		urls = append(urls, trimmedURL)
+	}
+	return urls, nil
+}
+
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 }
@@ -118,11 +132,20 @@ func worker(id int, urls <-chan string, results chan<- Result, client *http.Clie
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Enter comma-separated URLs to crawl:")
 
-	input, _ := reader.ReadString('\n') // Read the input from stdin
-	input = strings.TrimSpace(input)    // Trim whitespace
-	urls := strings.Split(input, ",")
+	var urls []string
+	for len(urls) == 0 {
+		fmt.Println("Enter comma-separated URLs to crawl:")
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		var err error
+		urls, err = validateURLs(input)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+	}
 
 	ch := make(chan Result)
 	urlsChan := make(chan string)
