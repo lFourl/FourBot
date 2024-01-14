@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -115,12 +117,12 @@ func worker(id int, urls <-chan string, results chan<- Result, client *http.Clie
 }
 
 func main() {
-	urls := []string{
-		"http://example.com",
-		"http://example.org",
-		"http://example.net",
-		// Add more URLs here
-	}
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Enter comma-separated URLs to crawl:")
+
+	input, _ := reader.ReadString('\n') // Read the input from stdin
+	input = strings.TrimSpace(input)    // Trim whitespace
+	urls := strings.Split(input, ",")
 
 	ch := make(chan Result)
 	urlsChan := make(chan string)
@@ -148,6 +150,7 @@ func main() {
 	}
 
 	for _, targetURL := range urls {
+		targetURL = strings.TrimSpace(targetURL)
 		parsedURL, err := url.Parse(targetURL)
 		if err != nil {
 			log.Printf("Error parsing URL: %s, error: %v", targetURL, err)
