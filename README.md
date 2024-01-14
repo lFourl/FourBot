@@ -12,5 +12,5 @@ A concurrent and performant web crawler using goroutines and channels.
 
 To run the web crawler, run the code below and input comma-separated URLs
 ```
-go run main.go
+go run cmd/goCrawl/main.go
 ```
