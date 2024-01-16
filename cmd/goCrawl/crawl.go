@@ -28,12 +28,17 @@ type Result struct {
 func validateURLs(input string) ([]string, error) {
 	rawURLs := strings.Split(input, ",")
 	var urls []string
+	seen := make(map[string]bool)
 
 	for _, rawURL := range rawURLs {
 		trimmedURL := strings.TrimSpace(rawURL)
 		if _, err := url.ParseRequestURI(trimmedURL); err != nil {
 			return nil, fmt.Errorf("invalid URL: %s", trimmedURL)
 		}
+		if _, ok := seen[trimmedURL]; ok {
+			continue
+		}
+		seen[trimmedURL] = true
 		urls = append(urls, trimmedURL)
 	}
 	return urls, nil
